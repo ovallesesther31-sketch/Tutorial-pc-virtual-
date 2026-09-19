@@ -1,0 +1,131 @@
+nombre: PC criado pelo @alves7.pcm
+
+en:
+  flujo_de_trabajo:
+    entradas:
+      número_de_instancia:
+        Descripción: 'Número de instancia (1-10)'
+        requerido: verdadero
+        valor predeterminado: '1'
+        tipo: cadena
+
+empleos:
+  desplegar-rdp:
+    Se ejecuta en: windows-latest
+    tiempo de espera-minutos: 360
+    
+    pasos:
+    - nombre: Repositorio de Checkout
+      Usos: acciones/checkout@v4
+      
+    - nombre: Información del sistema
+      correr: |
+        Write-Host "=== IMPLEMENTACIÓN RDP ENIGMANO ===" -ForegroundColor Green
+        Write-Host "Número de instancia: ${{ github.event.inputs.instance_number }}" -ForegroundColor Yellow
+        Write-Host "Ejecutor: $env:RUNNER_NAME" -ForegroundColor Yellow
+        Write-Host "Flujo de trabajo: $env:GITHUB_WORKFLOW" -ForegroundColor Yellow
+        
+        Write-Host "`n=== ESPECIFICACIONES DEL SISTEMA ===" -ForegroundColor Cyan
+        Obtener-InformaciónComputacional | Seleccionar-Objeto NombreProductoWindows, VersiónWindows, MemoriaPsicológicaTotal
+        Obtener-ObjetoWmi -Clase Win32_Procesador | Seleccionar-Objeto Nombre, NúmeroDeNúcleos, NúmeroDeProcesadoresLógicos
+        
+    - nombre: Habilitar RDP
+      correr: |
+        Write-Host "Habilitando Escritorio remoto..." -ForegroundColor Green
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Escritorio remoto"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+        
+    - nombre: Crear cuenta de usuario
+      correr: |
+        Write-Host "Configurando la cuenta de usuario..." -ForegroundColor Green
+        $Contraseña = ConvertTo-SecureString "P@ssw0rd!" -AsPlainText -Force
+        Set-LocalUser -Name "runneradmin" -Password $Password
+        Add-LocalGroupMember -Group "Usuarios de Escritorio Remoto" -Member "runneradmin"
+        Write-Host "Nombre de usuario: runneradmin" -ForegroundColor Yellow
+        Write-Host "Contraseña: P@ssw0rd!" -ForegroundColor Amarillo
+        
+    - nombre: Instalar Tailscale (silencioso)
+      correr: |
+        Write-Host "Descargando Tailscale..." -ForegroundColor Green
+        $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+        $installerPath = "$env:TEMP\tailscale.msi"
+        Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
+        Write-Host "Instalando Tailscale silenciosamente..." -ForegroundColor Green
+        Iniciar proceso msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet /norestart" -Wait
+        Remove-Item $installerPath -Force
+        Write-Host "¡Tailscale se instaló correctamente!" -ForegroundColor Green
+        
+    - nombre: Start Tailscale
+      correr: |
+        Write-Host "Iniciando Tailscale..." -ForegroundColor Green
+        & "C:\Archivos de programa\Tailscale\tailscale.exe" up --authkey ${{ secrets.TAILSCALE_AUTH_KEY }} --hostname "enigmano-${{ github.run_id }}"
+        Inicio-Sueño -Segundos 15
+        
+    - nombre: Obtener IP de Tailscale
+      correr: |
+        $tsIP = & "C:\Archivos de programa\Tailscale\tailscale.exe" ip -4
+        Write-Host "Dirección IP de Tailscale: $tsIP" -ForegroundColor Green
+        echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
+        
+    - nombre: Instalar Google Chrome (Directo)
+      correr: |
+        Write-Host "Descargando Google Chrome..." -ForegroundColor Green
+        $chromeUrl = "https://dl.google.com/chrome/install/latest/chrome_installer.exe"
+        $installerPath = "$env:TEMP\chrome_installer.exe"
+        Invoke-WebRequest -Uri $chromeUrl -OutFile $installerPath
+        Write-Host "Instalando Google Chrome silenciosamente..." -ForegroundColor Green
+        Start-Process -FilePath $installerPath -ArgumentList "/silent /install" -Wait
+        Remove-Item $installerPath -Force
+        Write-Host "¡Google Chrome instalado!" -ForegroundColor Green
+        
+    - nombre: Instalar 7-Zip (Directo)
+      correr: |
+        Write-Host "Descargando 7-Zip..." -ForegroundColor Green
+        $zipUrl = "https://www.7-zip.org/a/7z2409-x64.exe"
+        $installerPath = "$env:TEMP\7z-installer.exe"
+        Invoke-WebRequest -Uri $zipUrl -OutFile $installerPath
+        Write-Host "Instalando 7-Zip silenciosamente..." -ForegroundColor Green
+        Iniciar-Proceso -RutaArchivo $rutaInstalador -ListaArgumentos "/S" -Esperar
+        Remove-Item $installerPath -Force
+        Write-Host "¡7-Zip instalado!" -ForegroundColor Green
+        
+    - nombre: Detalles de conexión
+      correr: |
+        Write-Host "`n=== DETALLES DE CONEXIÓN (TAILSCALE) ===" -ForegroundColor Green
+        Write-Host "╔═════════════════════════════════════╗" -ForegroundColor Cyan
+        Write-Host "║ ACCESO RDP ENIGMANO ║" -ForegroundColor Cyan  
+        Write-Host "╠═════════════════════════════════════╣" -ForegroundColor Cyan
+        Write-Host "║ Host: $env:TAILSCALE_IP ║" -ForegroundColor White
+        Write-Host "║ Nombre de usuario: runneradmin ║" -ForegroundColor White
+        Write-Host "║ Contraseña: P@ssw0rd! ║" -ForegroundColor White
+        Write-Host "╚══════════════════════════════════════╝" -ForegroundColor Cyan
+        
+        Write-Host "`nInstrucciones de conexión:" -ForegroundColor Yellow
+        Write-Host "1. Instala Tailscale en tu dispositivo (teléfono, tableta, Mac, Linux)" -ForegroundColor White
+        Write-Host "2. Inicie sesión con la misma cuenta de Tailscale" -ForegroundColor White
+        Write-Host "3. Abra la aplicación Escritorio remoto e ingrese la IP anterior" -ForegroundColor White
+        Write-Host "4. Utilice las credenciales proporcionadas" -ForegroundColor White
+        
+    - nombre: Mantener la sesión activa
+      correr: |
+        Write-Host "`n=== SESIÓN ACTIVA ===" -ForegroundColor Green
+        Write-Host "¡La instancia RDP de EnigMano ya está en funcionamiento!" -ForegroundColor Cyan
+        Write-Host "La instancia permanecerá activa hasta por 6 horas." -ForegroundColor Yellow
+        Write-Host "No cierre esta ventana para mantener la conexión." -ForegroundColor Red
+        
+        $contador = 0
+        mientras ($verdadero) {
+          $contador++
+          Write-Host "Sesión activa - Latido #$counter ($(Get-Date))" -ForegroundColor Green
+          
+          $tsStatus = & "C:\Program Files\Tailscale\tailscale.exe" status
+          Si ($tsStatus coincide con "activo") {
+            Write-Host "Estado de Tailscale: ACTIVO" -ForegroundColor Green
+          } demás {
+            Write-Host "Estado de Tailscale: ERROR - Reiniciando..." -ForegroundColor Red
+            & "C:\Archivos de programa\Tailscale\tailscale.exe" up --authkey ${{ secrets.TAILSCALE_AUTH_KEY }} --hostname "enigmano-${{ github.run_id }}"
+          }
+          
+          Inicio-Sueño -Segundos 60
+        }
